@@ -83,7 +83,7 @@
             box-sizing: border-box; 
         }
 
-        button.calculate-btn { /* 特别为计算按钮设置类名 */
+        button.calculate-btn { 
             width: 100%;
             padding: 12px;
             background-color: #2ecc71;
@@ -110,6 +110,65 @@
             color: #2980b9;
             font-weight: bold;
             display: none; 
+        }
+
+        /* --- 弹窗样式 --- */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 100; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.4); 
+            padding-top: 50px;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto; 
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; 
+            max-width: 350px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .modal-content h3 {
+            color: #e74c3c;
+        }
+        
+        .modal-content p {
+            font-size: 16px;
+            color: #333;
+            margin: 15px 0;
+            line-height: 1.5;
+        }
+
+        .modal-buttons button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* 健康提示弹窗特有样式 */
+        #healthy-alert-modal .modal-content h3 {
+            color: #2ecc71;
+        }
+        #healthy-alert-modal #continue-button {
+            background-color: #3498db;
+            color: white;
+        }
+        #healthy-alert-modal #know-button {
+            background-color: #ecf0f1;
+            color: #7f8c8d;
         }
     </style>
 </head>
@@ -185,9 +244,48 @@
     </div>
 </div>
 
-<script>
-    /* JavaScript 脚本：实现计算和食物换算逻辑 */
+<div id="healthy-alert-modal" class="modal">
+    <div class="modal-content">
+        <h3 id="healthy-modal-title">👏 恭喜！您的体重非常健康</h3>
+        <p id="healthy-modal-message">您的 BMI 处于健康范围内，不减肥也很美，要好好吃饭哦。</p>
+        <div class="modal-buttons">
+            <button id="continue-button" onclick="handleHealthySuggestion('continue')">坚持减肥</button>
+            <button id="know-button" onclick="handleHealthySuggestion('known')">我知道了</button>
+        </div>
+    </div>
+</div>
 
+<div id="health-alert-modal" class="modal">
+    <div class="modal-content">
+        <h3 id="modal-title"></h3>
+        <p id="modal-message"></p>
+        <div class="modal-buttons">
+            <button id="listen-button" onclick="handleRateSuggestion(true)">听从建议</button>
+            <button id="ignore-button" onclick="handleRateSuggestion(false)">不听不听</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    /* JavaScript 脚本 */
+
+    // 定义常量
+    const FAT_CALORIES_PER_KG = 7700; // 1公斤脂肪约等于 7700 千卡
+    const MIN_HEALTHY_BMI = 18.5;
+    const MAX_HEALTHY_BMI = 24.9;
+    const MIN_HEALTHY_LOSS_KG_PER_WEEK = 0.5;
+    const MAX_HEALTHY_LOSS_KG_PER_WEEK = 1.0;
+    
+    // 运动数据 (用于推荐)
+    const exerciseDataForRecommendation = [
+        { id: 'jogging', name: "慢跑 (8km/h)", met: 8.3, description: "高效燃脂，提升心肺功能" },
+        { id: 'jumping_rope', name: "跳绳 (中等强度)", met: 10.0, description: "高强度心肺，燃脂效率高" },
+        { id: 'cycling', name: "骑自行车 (中速)", met: 7.5, description: "低冲击有氧，适合长时间坚持" },
+        { id: 'fast_walk', name: "快走", met: 5.0, description: "低强度有氧，适合日常或热身" },
+        { id: 'strength', name: "力量训练 (举铁)", met: 5.0, description: "增加肌肉量，提高基础代谢" }
+    ];
+    
     // 定义常见食物的卡路里值 (千卡/每份)
     const foodEquivalents = [
         { name: "小苹果", calories: 95, unit: "个", emoji: "🍏" },
@@ -198,18 +296,19 @@
         { name: "巧克力棒", calories: 210, unit: "根", emoji: "🍫" }
     ];
 
-    // 运动数据：名称、MET 值 和 额外的描述 (用于推荐)
-    const exerciseDataForRecommendation = [
-        { id: 'jogging', name: "慢跑 (8km/h)", met: 8.3, description: "高效燃脂，提升心肺功能" },
-        { id: 'jumping_rope', name: "跳绳 (中等强度)", met: 10.0, description: "高强度心肺，燃脂效率高" },
-        { id: 'cycling', name: "骑自行车 (中速)", met: 7.5, description: "低冲击有氧，适合长时间坚持" },
-        { id: 'fast_walk', name: "快走", met: 5.0, description: "低强度有氧，适合日常或热身" },
-        { id: 'strength', name: "力量训练 (举铁)", met: 5.0, description: "增加肌肉量，提高基础代谢" }
-    ];
-
+    // 全局变量用于存储合理的减重公斤数和初始日缺口
+    let suggestedWeightLossKg = 0; 
+    let initialDailyDeficitNeeded = 0;
+    
     // Helper function to find exercise data by ID
     function getExerciseById(id) {
         return exerciseDataForRecommendation.find(ex => ex.id === id);
+    }
+
+    // BMI (身体质量指数) 计算
+    function calculateBMI(weight, heightCm) {
+        const heightM = heightCm / 100;
+        return weight / (heightM * heightM);
     }
 
     // BMR (基础代谢率) 计算公式 - Mifflin-St Jeor 公式
@@ -233,29 +332,22 @@
         });
     }
     
-    // --- 界面切换逻辑 ---
+    // --- 界面切换逻辑 (保持不变) ---
     function showView(viewId, buttonElement) {
-        // 隐藏所有视图
         document.getElementById('calculator-view').style.display = 'none';
         document.getElementById('recommendation-view').style.display = 'none';
-
-        // 显示目标视图
         document.getElementById(viewId).style.display = 'block';
-
-        // 移除所有按钮的 active 状态
         document.querySelectorAll('.tab-button').forEach(btn => {
             btn.classList.remove('active');
         });
-
-        // 给当前按钮添加 active 状态
         if (buttonElement) {
             buttonElement.classList.add('active');
         }
     }
 
-    // --- 核心计算逻辑：计算本次运动消耗 ---
+    // --- 核心计算逻辑：计算本次运动消耗 (保持不变) ---
     function calculateCalories() {
-        // 1. 获取所有输入值
+        // ... (保持不变) ...
         const weight = parseFloat(document.getElementById('weight').value);
         const height = parseFloat(document.getElementById('height').value);
         const age = parseFloat(document.getElementById('age').value);
@@ -265,7 +357,6 @@
         const met = parseFloat(document.getElementById('exercise').value); 
         const resultDiv = document.getElementById('result');
 
-        // 2. 校验输入 (只校验本次计算所需的输入)
         if (isNaN(weight) || isNaN(height) || isNaN(age) || isNaN(duration) || 
             weight <= 0 || height <= 0 || age <= 0 || duration <= 0) {
             resultDiv.innerHTML = '请确保身体数据和运动时长都输入有效数字！';
@@ -274,15 +365,11 @@
             return;
         }
 
-        // 3. 计算 BMR, TDEE
         const bmr = calculateBMR(weight, height, age, gender);
         const tdee = bmr * activityFactor; 
-        
-        // 4. 卡路里消耗计算
         const durationHours = duration / 60;
         const caloriesBurned = met * weight * durationHours;
 
-        // 5. 生成食物换算结果列表
         let foodEquivalentsHtml = '<div style="margin-top: 10px; text-align: left; font-weight: normal;">';
         foodEquivalentsHtml += '<h4 style="margin: 0; font-size: 16px; color: #555;">大致相当于：</h4>'
         foodEquivalents.forEach(food => {
@@ -293,7 +380,6 @@
         });
         foodEquivalentsHtml += '</div>';
         
-        // 6. 格式化并显示结果
         const formattedResult = caloriesBurned.toFixed(1); 
         const selectedExerciseText = document.getElementById('exercise').options[document.getElementById('exercise').selectedIndex].text;
         
@@ -313,55 +399,160 @@
         resultDiv.style.borderColor = '#2ecc71'; 
         resultDiv.style.color = '#2980b9';
 
-        // 触发烟花特效
         triggerConfetti();
     }
     
-    // --- 运动推荐逻辑：计算目标和运动量 ---
+    // --- 运动推荐主逻辑 ---
     function calculateRecommendations() {
         // 1. 获取所有输入值
         const weight = parseFloat(document.getElementById('weight').value);
         const height = parseFloat(document.getElementById('height').value);
-        const age = parseFloat(document.getElementById('age').value);
-        const gender = document.getElementById('gender').value;
-        const activityFactor = parseFloat(document.getElementById('activity').value);
         const targetWeeks = parseFloat(document.getElementById('targetWeeks').value); 
         const targetWeightLoss = parseFloat(document.getElementById('targetWeightLoss').value); 
         const outputDiv = document.getElementById('recommendation-output');
-
-        // 2. 校验输入
-        if (isNaN(weight) || isNaN(height) || isNaN(age) || isNaN(targetWeeks) || isNaN(targetWeightLoss) || 
-            weight <= 0 || height <= 0 || age <= 0 || targetWeeks <= 0 || targetWeightLoss <= 0) {
-            outputDiv.innerHTML = '请先在卡路里计算器界面和本页输入框中填写有效的身体数据和目标！';
+        
+        // 基础校验
+        if (isNaN(weight) || isNaN(height) || isNaN(targetWeeks) || isNaN(targetWeightLoss) || 
+            weight <= 0 || height <= 0 || targetWeeks <= 0 || targetWeightLoss <= 0) {
+            outputDiv.innerHTML = '请先填写有效的身体数据和目标！';
             outputDiv.style.display = 'block';
             outputDiv.style.borderColor = '#e74c3c';
             return;
         }
 
-        // 3. BMR, TDEE 和目标缺口计算
+        // --- 优先级 1: 健康体重检查 (只弹出一次) ---
+        const bmi = calculateBMI(weight, height);
+        const hasSeenHealthyAlert = localStorage.getItem('hasSeenHealthyAlert');
+
+        if (bmi >= MIN_HEALTHY_BMI && bmi <= MAX_HEALTHY_BMI && hasSeenHealthyAlert !== 'true') {
+            const healthyModal = document.getElementById('healthy-alert-modal');
+            healthyModal.style.display = 'block';
+            // 弹出此弹窗后，阻止后续所有计算和弹窗
+            return; 
+        }
+
+        // --- 优先级 2: 减肥速率合理性检查 ---
+        const actualWeeklyLoss = targetWeightLoss / targetWeeks;
+        const totalDays = targetWeeks * 7;
+        const totalCaloriesToBurn = targetWeightLoss * FAT_CALORIES_PER_KG; 
+        initialDailyDeficitNeeded = totalCaloriesToBurn / totalDays; 
+        
+        const MIN_HEALTHY_DEFICIT = MIN_HEALTHY_LOSS_KG_PER_WEEK * FAT_CALORIES_PER_KG / 7;
+        const MAX_HEALTHY_DEFICIT = MAX_HEALTHY_LOSS_KG_PER_WEEK * FAT_CALORIES_PER_KG / 7;
+        
+        const rateModal = document.getElementById('health-alert-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+
+        if (actualWeeklyLoss < MIN_HEALTHY_LOSS_KG_PER_WEEK) {
+            // 目标过慢
+            suggestedWeightLossKg = MIN_HEALTHY_LOSS_KG_PER_WEEK * targetWeeks;
+            const dailyDeficitSuggested = MIN_HEALTHY_DEFICIT.toFixed(0);
+            
+            modalTitle.textContent = "✅ 建议加速：目标可能过于保守！";
+            modalMessage.innerHTML = `
+                您计划每周减重 ${actualWeeklyLoss.toFixed(2)} 公斤，这过于保守。
+                为了更有效率，建议您将目标定为每周减重 ${MIN_HEALTHY_LOSS_KG_PER_WEEK.toFixed(1)} 公斤。
+                这意味着您每天应制造 **${dailyDeficitSuggested} 千卡** 的热量缺口。
+                是否将目标调整为总共减重 **${suggestedWeightLossKg.toFixed(1)}** 公斤？
+            `;
+            rateModal.style.display = 'block';
+            return;
+            
+        } else if (actualWeeklyLoss > MAX_HEALTHY_LOSS_KG_PER_WEEK) {
+            // 目标过快
+            suggestedWeightLossKg = MAX_HEALTHY_LOSS_KG_PER_WEEK * targetWeeks;
+            const dailyDeficitSuggested = MAX_HEALTHY_DEFICIT.toFixed(0);
+            
+            modalTitle.textContent = "⚠️ 健康警告：您的目标过快！";
+            modalMessage.innerHTML = `
+                您计划每周减重 ${actualWeeklyLoss.toFixed(2)} 公斤，这可能不利于长期保持。
+                健康的极限是每周减重 ${MAX_HEALTHY_LOSS_KG_PER_WEEK.toFixed(1)} 公斤。
+                这意味着您每天应制造 **${dailyDeficitSuggested} 千卡** 的热量缺口。
+                是否将目标调整为总共减重 **${suggestedWeightLossKg.toFixed(1)}** 公斤？
+            `;
+            rateModal.style.display = 'block';
+            return; 
+        }
+
+        // 3. 如果通过所有检查，直接生成计划
+        generatePlan(targetWeightLoss, initialDailyDeficitNeeded);
+    }
+    
+    // --- 弹窗处理函数：健康体重提示 (优先级 1) ---
+    function handleHealthySuggestion(action) {
+        const healthyModal = document.getElementById('healthy-alert-modal');
+        const messageContainer = healthyModal.querySelector('.modal-content p');
+        
+        // 记录用户已看到此提示
+        localStorage.setItem('hasSeenHealthyAlert', 'true');
+
+        if (action === 'known') {
+            healthyModal.style.display = 'none'; // 取消弹窗
+        } else if (action === 'continue') {
+            // 坚持减肥
+            messageContainer.innerHTML = '遇见更好的自己！💪';
+            
+            // 3秒后消失，并继续执行原始的计划生成逻辑（即进入优先级 2 检查）
+            setTimeout(() => {
+                healthyModal.style.display = 'none';
+                calculateRecommendations(); // 再次调用，这次会跳过优先级 1 检查
+            }, 3000);
+        }
+    }
+
+
+    // --- 弹窗处理函数：减肥速率提示 (优先级 2) ---
+    function handleRateSuggestion(listenToSuggestion) {
+        const rateModal = document.getElementById('health-alert-modal');
+        rateModal.style.display = 'none'; // 关闭弹窗
+
+        const targetWeeks = parseFloat(document.getElementById('targetWeeks').value); 
+        let finalWeightLoss;
+        let finalDailyDeficit;
+
+        if (listenToSuggestion) {
+            // 听从建议：更新输入框，并使用建议值重新计算
+            document.getElementById('targetWeightLoss').value = suggestedWeightLossKg.toFixed(1);
+            
+            finalWeightLoss = suggestedWeightLossKg;
+            const totalCaloriesToBurn = finalWeightLoss * FAT_CALORIES_PER_KG;
+            const totalDays = targetWeeks * 7;
+            finalDailyDeficit = totalCaloriesToBurn / totalDays;
+            
+        } else {
+            // 不听不听：使用用户最初输入的值继续计算
+            finalWeightLoss = parseFloat(document.getElementById('targetWeightLoss').value);
+            finalDailyDeficit = initialDailyDeficitNeeded; 
+        }
+
+        // 调用生成计划函数
+        generatePlan(finalWeightLoss, finalDailyDeficit);
+    }
+
+    // --- 计划生成函数（独立出来） ---
+    function generatePlan(finalWeightLoss, finalDailyDeficitNeeded) {
+        const outputDiv = document.getElementById('recommendation-output');
+        const weight = parseFloat(document.getElementById('weight').value);
+        const targetWeeks = parseFloat(document.getElementById('targetWeeks').value); 
+        const gender = document.getElementById('gender').value;
+        const activityFactor = parseFloat(document.getElementById('activity').value);
+        const age = parseFloat(document.getElementById('age').value);
+        const height = parseFloat(document.getElementById('height').value);
+        
         const bmr = calculateBMR(weight, height, age, gender);
         const tdee = bmr * activityFactor; 
-        
-        // 1公斤脂肪约等于 7700 千卡
-        const TOTAL_CALORIES_TO_BURN = targetWeightLoss * 7700; 
-        const TOTAL_DAYS = targetWeeks * 7;
-        
-        const dailyCalorieDeficitNeeded = TOTAL_CALORIES_TO_BURN / TOTAL_DAYS; 
-        const recommendedIntake = tdee - dailyCalorieDeficitNeeded; 
+        const recommendedIntake = tdee - finalDailyDeficitNeeded; 
 
-        // --- 4. 运动组合推荐计算 ---
+        // --- 运动组合推荐计算 (逻辑不变) ---
         let combinationPlans = [];
         
-        // Plan 1: 高效平衡 (Balanced Efficiency: 50% 慢跑 + 50% 力量训练)
+        // Plan 1: 高效平衡 (50% 慢跑 + 50% 力量训练)
         {
             const jog = getExerciseById('jogging');
             const strength = getExerciseById('strength');
-            
-            // 计算两种运动需要消耗的卡路里
-            const deficitForJog = dailyCalorieDeficitNeeded * 0.5;
-            const deficitForStrength = dailyCalorieDeficitNeeded * 0.5;
-            
-            // 计算所需时间 (分钟)
+            const deficitForJog = finalDailyDeficitNeeded * 0.5;
+            const deficitForStrength = finalDailyDeficitNeeded * 0.5;
             const timeJogMin = (deficitForJog / (jog.met * weight)) * 60;
             const timeStrengthMin = (deficitForStrength / (strength.met * weight)) * 60;
             
@@ -375,14 +566,12 @@
             });
         }
 
-        // Plan 2: 低冲击有氧 (Low Impact Cardio: 70% 骑自行车 + 30% 快走)
+        // Plan 2: 低冲击有氧 (70% 骑自行车 + 30% 快走)
         {
             const cycle = getExerciseById('cycling');
             const walk = getExerciseById('fast_walk');
-            
-            const deficitForCycle = dailyCalorieDeficitNeeded * 0.7;
-            const deficitForWalk = dailyCalorieDeficitNeeded * 0.3;
-            
+            const deficitForCycle = finalDailyDeficitNeeded * 0.7;
+            const deficitForWalk = finalDailyDeficitNeeded * 0.3;
             const timeCycleMin = (deficitForCycle / (cycle.met * weight)) * 60;
             const timeWalkMin = (deficitForWalk / (walk.met * weight)) * 60;
             
@@ -396,9 +585,7 @@
             });
         }
         
-        // 5. 格式化并显示结果
         let exerciseRecommendationsHtml = '';
-        
         combinationPlans.forEach((plan) => {
             exerciseRecommendationsHtml += `
                 <div style="margin-top: 15px; border: 1px solid #e74c3c; border-radius: 6px; padding: 10px; background-color: #fcfcfc;">
@@ -421,11 +608,11 @@
             </span>
             <hr style="border: 0; border-top: 2px solid #3498db; margin: 15px 0;">
             <span style="font-size: 18px; color: #e67e22; font-weight: bold;">
-                🎯 目标：${targetWeeks} 周内减重 ${targetWeightLoss} kg
+                🎯 目标：${targetWeeks} 周内减重 ${finalWeightLoss.toFixed(1)} kg
             </span>
             <br>
             <span style="font-size: 18px; color: #e74c3c; font-weight: bold;">
-                您每天需制造热量缺口：${dailyCalorieDeficitNeeded.toFixed(0)} 千卡
+                您每天需制造热量缺口：${finalDailyDeficitNeeded.toFixed(0)} 千卡
             </span>
             <span style="font-size: 14px; color: #555;">
                 （建议每日总摄入 ≤ ${recommendedIntake.toFixed(0)} 千卡 + 运动消耗）
@@ -438,7 +625,6 @@
         outputDiv.style.display = 'block';
         outputDiv.style.borderColor = '#e74c3c'; 
         
-        // 触发烟花特效
         triggerConfetti();
     }
     
