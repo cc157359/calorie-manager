@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡路里管理中心 - 网页版</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        /* CSS 样式：控制外观和布局 */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        /* 顶部导航按钮样式 */
+        .tab-buttons {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab-button {
+            flex-grow: 1;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #ecf0f1;
+            border: none;
+            border-radius: 5px 5px 0 0;
+            color: #7f8c8d;
+            font-weight: bold;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .tab-button.active {
+            background-color: #3498db;
+            color: white;
+        }
+
+        /* 界面切换控制：默认隐藏运动推荐界面 */
+        #recommendation-view {
+            display: none;
+        }
+
+        /* 其他输入和按钮样式 */
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 24px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            box-sizing: border-box; 
+        }
+
+        button.calculate-btn { /* 特别为计算按钮设置类名 */
+            width: 100%;
+            padding: 12px;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+
+        button.calculate-btn:hover {
+            background-color: #27ae60;
+        }
+
+        #result, #recommendation-output {
+            margin-top: 30px;
+            padding: 15px;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 18px;
+            color: #2980b9;
+            font-weight: bold;
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="margin-top: 0;">卡路里管理中心</h1>
+    
+    <div class="tab-buttons">
+        <button class="tab-button active" onclick="showView('calculator-view', this)">卡路里计算器</button>
+        <button class="tab-button" onclick="showView('recommendation-view', this)">目标与运动推荐</button>
+    </div>
+
+    <div id="calculator-view">
+        <label for="weight">体重 (kg):</label>
+        <input type="number" id="weight" placeholder="请输入你的体重" required>
+        
+        <label for="height">身高 (cm):</label>
+        <input type="number" id="height" placeholder="请输入你的身高" required>
+
+        <label for="age">年龄:</label>
+        <input type="number" id="age" placeholder="请输入你的年龄" required>
+        
+        <label for="gender">性别:</label>
+        <select id="gender">
+            <option value="male">男性</option>
+            <option value="female">女性</option>
+        </select>
+        
+        <label for="activity">活动水平:</label>
+        <select id="activity">
+            <option value="1.2">久坐不动 (极少运动)</option>
+            <option value="1.375">轻度活动 (每周运动 1-3 天)</option>
+            <option value="1.55">中度活动 (每周运动 3-5 天)</option>
+            <option value="1.725">高度活动 (每周运动 6-7 天)</option>
+            <option value="1.9">极度活动 (每天高强度训练)</option>
+        </select>
+        
+        <hr style="margin-top: 30px; border-color: #ddd;">
+        
+        <label for="exercise">本次运动类型:</label>
+        <select id="exercise">
+            <option value="3.5">慢走 (散步)</option>
+            <option value="5.0">快走</option>
+            <option value="8.3">慢跑 (8km/h)</option>
+            <option value="6.0">游泳 (休闲)</option>
+            <option value="7.5">骑自行车 (中速)</option>
+            <option value="10.0">跳绳 (中等强度)</option>
+            <option value="2.5">瑜伽</option>
+            <option value="5.0">力量训练 (举铁)</option>
+        </select>
+
+        <label for="duration">本次运动时长 (分钟):</label>
+        <input type="number" id="duration" placeholder="请输入本次运动分钟数" required>
+
+        <button class="calculate-btn" onclick="calculateCalories()">计算消耗</button>
+
+        <div id="result"></div>
+    </div>
+
+    <div id="recommendation-view">
+        <h3 style="color: #2c3e50; font-size: 18px; margin-top: 0;">输入目标，获取每日计划</h3>
+
+        <label for="targetWeeks">目标减重时间 (周):</label>
+        <input type="number" id="targetWeeks" placeholder="例如：8 周" value="8" required>
+
+        <label for="targetWeightLoss">目标减重公斤数 (kg):</label>
+        <input type="number" id="targetWeightLoss" placeholder="例如：5 公斤" value="5" required>
+        
+        <button class="calculate-btn" onclick="calculateRecommendations()">生成减肥计划</button>
+
+        <div id="recommendation-output"></div>
+    </div>
+</div>
+
+<script>
+    /* JavaScript 脚本：实现计算和食物换算逻辑 */
+
+    // 定义常见食物的卡路里值 (千卡/每份)
+    const foodEquivalents = [
+        { name: "小苹果", calories: 95, unit: "个", emoji: "🍏" },
+        { name: "一碗米饭", calories: 130, unit: "碗", emoji: "🍚" },
+        { name: "中等汉堡", calories: 300, unit: "个", emoji: "🍔" },
+        { name: "中份薯条", calories: 360, unit: "份", emoji: "🍟" },
+        { name: "一瓶可乐", calories: 140, unit: "瓶", emoji: "🥤" },
+        { name: "巧克力棒", calories: 210, unit: "根", emoji: "🍫" }
+    ];
+
+    // 运动数据：名称、MET 值 和 额外的描述 (用于推荐)
+    const exerciseDataForRecommendation = [
+        { name: "慢跑 (8km/h)", met: 8.3, description: "高效燃脂，提升心肺功能" },
+        { name: "跳绳 (中等强度)", met: 10.0, description: "燃脂效率高，但对关节有冲击" },
+        { name: "骑自行车 (中速)", met: 7.5, description: "低冲击运动，适合长时间坚持" },
+        { name: "快走", met: 5.0, description: "适合日常或运动基础较弱者" }
+    ];
+
+    // BMR (基础代谢率) 计算公式 - Mifflin-St Jeor 公式
+    function calculateBMR(weight, height, age, gender) {
+        let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+        if (gender === 'male') {
+            bmr += 5;
+        } else {
+            bmr -= 161;
+        }
+        return bmr;
+    }
+
+    // 烟花特效函数
+    function triggerConfetti() {
+        confetti({
+            particleCount: 100, 
+            spread: 70, 
+            origin: { y: 0.6 },
+            colors: ['#a864fd', '#29cdff', '#78ff44', '#ff718d', '#fdff6a'] 
+        });
+    }
+    
+    // --- 界面切换逻辑 ---
+    function showView(viewId, buttonElement) {
+        // 隐藏所有视图
+        document.getElementById('calculator-view').style.display = 'none';
+        document.getElementById('recommendation-view').style.display = 'none';
+
+        // 显示目标视图
+        document.getElementById(viewId).style.display = 'block';
+
+        // 移除所有按钮的 active 状态
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // 给当前按钮添加 active 状态
+        if (buttonElement) {
+            buttonElement.classList.add('active');
+        }
+    }
+
+    // --- 核心计算逻辑：计算本次运动消耗 ---
+    function calculateCalories() {
+        // 1. 获取所有输入值 (注意：这里需要从 calculator-view 中获取数据)
+        const weight = parseFloat(document.getElementById('weight').value);
+        const height = parseFloat(document.getElementById('height').value);
+        const age = parseFloat(document.getElementById('age').value);
+        const gender = document.getElementById('gender').value;
+        const activityFactor = parseFloat(document.getElementById('activity').value);
+        const duration = parseFloat(document.getElementById('duration').value);
+        const met = parseFloat(document.getElementById('exercise').value); 
+        const resultDiv = document.getElementById('result');
+
+        // 2. 校验输入 (只校验本次计算所需的输入)
+        if (isNaN(weight) || isNaN(height) || isNaN(age) || isNaN(duration) || 
+            weight <= 0 || height <= 0 || age <= 0 || duration <= 0) {
+            resultDiv.innerHTML = '请确保身体数据和运动时长都输入有效数字！';
+            resultDiv.style.display = 'block';
+            resultDiv.style.borderColor = '#e74c3c';
+            return;
+        }
+
+        // 3. 计算 BMR, TDEE
+        const bmr = calculateBMR(weight, height, age, gender);
+        const tdee = bmr * activityFactor; 
+        
+        // 4. 卡路里消耗计算
+        const durationHours = duration / 60;
+        const caloriesBurned = met * weight * durationHours;
+
+        // 5. 生成食物换算结果列表
+        let foodEquivalentsHtml = '<div style="margin-top: 10px; text-align: left; font-weight: normal;">';
+        foodEquivalentsHtml += '<h4 style="margin: 0; font-size: 16px; color: #555;">大致相当于：</h4>'
+        foodEquivalents.forEach(food => {
+            if (caloriesBurned >= food.calories * 0.1) { 
+                const count = (caloriesBurned / food.calories).toFixed(1);
+                foodEquivalentsHtml += `<p style="margin: 5px 0;">${food.emoji} ${count} ${food.unit} ${food.name}</p>`;
+            }
+        });
+        foodEquivalentsHtml += '</div>';
+        
+        // 6. 格式化并显示结果
+        const formattedResult = caloriesBurned.toFixed(1); 
+        const selectedExerciseText = document.getElementById('exercise').options[document.getElementById('exercise').selectedIndex].text;
+        
+        resultDiv.innerHTML = `
+            <span style="font-size: 16px; color: #4b6a88;">
+                TDEE 约为：${tdee.toFixed(0)} 千卡/天
+            </span>
+            <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
+            <span style="font-size: 18px; color: #2c3e50;">本次 ${selectedExerciseText} 消耗：</span>
+            <br>
+            <span style="font-size: 28px; color: #2ecc71; font-weight: bold;">
+                ${formattedResult}
+            </span> 千卡 (kcal)
+            ${foodEquivalentsHtml}
+        `;
+        resultDiv.style.display = 'block';
+        resultDiv.style.borderColor = '#2ecc71'; 
+        resultDiv.style.color = '#2980b9';
+
+        // 触发烟花特效
+        triggerConfetti();
+    }
+    
+    // --- 运动推荐逻辑：计算目标和运动量 ---
+    function calculateRecommendations() {
+        // 1. 获取所有输入值 (从两个视图中获取)
+        const weight = parseFloat(document.getElementById('weight').value);
+        const height = parseFloat(document.getElementById('height').value);
+        const age = parseFloat(document.getElementById('age').value);
+        const gender = document.getElementById('gender').value;
+        const activityFactor = parseFloat(document.getElementById('activity').value);
+        const targetWeeks = parseFloat(document.getElementById('targetWeeks').value); 
+        const targetWeightLoss = parseFloat(document.getElementById('targetWeightLoss').value); 
+        const outputDiv = document.getElementById('recommendation-output');
+
+        // 2. 校验输入
+        if (isNaN(weight) || isNaN(height) || isNaN(age) || isNaN(targetWeeks) || isNaN(targetWeightLoss) || 
+            weight <= 0 || height <= 0 || age <= 0 || targetWeeks <= 0 || targetWeightLoss <= 0) {
+            outputDiv.innerHTML = '请先在左侧输入框和本页输入框中填写有效的身体数据和目标！';
+            outputDiv.style.display = 'block';
+            outputDiv.style.borderColor = '#e74c3c';
+            return;
+        }
+
+        // 3. BMR, TDEE 和目标缺口计算
+        const bmr = calculateBMR(weight, height, age, gender);
+        const tdee = bmr * activityFactor; 
+        
+        const TOTAL_CALORIES_TO_BURN = targetWeightLoss * 7700; 
+        const TOTAL_DAYS = targetWeeks * 7;
+        
+        const dailyCalorieDeficitNeeded = TOTAL_CALORIES_TO_BURN / TOTAL_DAYS; 
+        const recommendedIntake = tdee - dailyCalorieDeficitNeeded; 
+
+        // 4. 运动推荐计算
+        let exerciseRecommendationsHtml = '<div style="text-align: left; font-weight: normal;">';
+        
+        exerciseDataForRecommendation.forEach(ex => {
+            const hoursNeeded = dailyCalorieDeficitNeeded / (ex.met * weight);
+            const minutesNeeded = hoursNeeded * 60; 
+
+            exerciseRecommendationsHtml += `
+                <p style="margin: 8px 0; border-left: 3px solid #f39c12; padding-left: 10px;">
+                    <span style="font-weight: bold; color: #f39c12;">${ex.name}</span>: 
+                    <span style="font-size: 16px;">${minutesNeeded.toFixed(0)} 分钟/天</span> 
+                    <span style="font-size: 12px; color: #7f8c8d;">(${ex.description})</span>
+                </p>
+            `;
+        });
+        exerciseRecommendationsHtml += '</div>';
+
+        // 5. 格式化并显示结果
+        outputDiv.innerHTML = `
+            <span style="font-size: 16px; color: #4b6a88;">
+                您的每日总消耗 (TDEE) 约为：${tdee.toFixed(0)} 千卡
+            </span>
+            <hr style="border: 0; border-top: 2px solid #3498db; margin: 15px 0;">
+            <span style="font-size: 18px; color: #e67e22; font-weight: bold;">
+                🎯 目标：${targetWeeks} 周内减重 ${targetWeightLoss} kg
+            </span>
+            <br>
+            <span style="font-size: 18px; color: #e74c3c; font-weight: bold;">
+                您每天需制造热量缺口：${dailyCalorieDeficitNeeded.toFixed(0)} 千卡
+            </span>
+            <span style="font-size: 14px; color: #555;">
+                （建议每日总摄入 ≤ ${recommendedIntake.toFixed(0)} 千卡 + 运动消耗）
+            </span>
+            <hr style="border: 0; border-top: 1px dashed #ddd; margin: 15px 0;">
+            
+            <h3 style="color: #2c3e50; font-size: 18px; margin-top: 0; margin-bottom: 10px;">🏃‍♀️ 为达成目标，您的运动量推荐：</h3>
+            ${exerciseRecommendationsHtml}
+        `;
+        outputDiv.style.display = 'block';
+        outputDiv.style.borderColor = '#e74c3c'; 
+        
+        // 触发烟花特效
+        triggerConfetti();
+    }
+    
+    // 页面加载完成后默认显示计算器视图
+    window.onload = function() {
+        showView('calculator-view', document.querySelector('.tab-button'));
+    };
+</script>
+
+</body>
+</html>
