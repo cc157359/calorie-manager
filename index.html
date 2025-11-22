@@ -200,11 +200,17 @@
 
     // 运动数据：名称、MET 值 和 额外的描述 (用于推荐)
     const exerciseDataForRecommendation = [
-        { name: "慢跑 (8km/h)", met: 8.3, description: "高效燃脂，提升心肺功能" },
-        { name: "跳绳 (中等强度)", met: 10.0, description: "燃脂效率高，但对关节有冲击" },
-        { name: "骑自行车 (中速)", met: 7.5, description: "低冲击运动，适合长时间坚持" },
-        { name: "快走", met: 5.0, description: "适合日常或运动基础较弱者" }
+        { id: 'jogging', name: "慢跑 (8km/h)", met: 8.3, description: "高效燃脂，提升心肺功能" },
+        { id: 'jumping_rope', name: "跳绳 (中等强度)", met: 10.0, description: "高强度心肺，燃脂效率高" },
+        { id: 'cycling', name: "骑自行车 (中速)", met: 7.5, description: "低冲击有氧，适合长时间坚持" },
+        { id: 'fast_walk', name: "快走", met: 5.0, description: "低强度有氧，适合日常或热身" },
+        { id: 'strength', name: "力量训练 (举铁)", met: 5.0, description: "增加肌肉量，提高基础代谢" }
     ];
+
+    // Helper function to find exercise data by ID
+    function getExerciseById(id) {
+        return exerciseDataForRecommendation.find(ex => ex.id === id);
+    }
 
     // BMR (基础代谢率) 计算公式 - Mifflin-St Jeor 公式
     function calculateBMR(weight, height, age, gender) {
@@ -249,7 +255,7 @@
 
     // --- 核心计算逻辑：计算本次运动消耗 ---
     function calculateCalories() {
-        // 1. 获取所有输入值 (注意：这里需要从 calculator-view 中获取数据)
+        // 1. 获取所有输入值
         const weight = parseFloat(document.getElementById('weight').value);
         const height = parseFloat(document.getElementById('height').value);
         const age = parseFloat(document.getElementById('age').value);
@@ -313,7 +319,7 @@
     
     // --- 运动推荐逻辑：计算目标和运动量 ---
     function calculateRecommendations() {
-        // 1. 获取所有输入值 (从两个视图中获取)
+        // 1. 获取所有输入值
         const weight = parseFloat(document.getElementById('weight').value);
         const height = parseFloat(document.getElementById('height').value);
         const age = parseFloat(document.getElementById('age').value);
@@ -326,7 +332,7 @@
         // 2. 校验输入
         if (isNaN(weight) || isNaN(height) || isNaN(age) || isNaN(targetWeeks) || isNaN(targetWeightLoss) || 
             weight <= 0 || height <= 0 || age <= 0 || targetWeeks <= 0 || targetWeightLoss <= 0) {
-            outputDiv.innerHTML = '请先在左侧输入框和本页输入框中填写有效的身体数据和目标！';
+            outputDiv.innerHTML = '请先在卡路里计算器界面和本页输入框中填写有效的身体数据和目标！';
             outputDiv.style.display = 'block';
             outputDiv.style.borderColor = '#e74c3c';
             return;
@@ -336,30 +342,79 @@
         const bmr = calculateBMR(weight, height, age, gender);
         const tdee = bmr * activityFactor; 
         
+        // 1公斤脂肪约等于 7700 千卡
         const TOTAL_CALORIES_TO_BURN = targetWeightLoss * 7700; 
         const TOTAL_DAYS = targetWeeks * 7;
         
         const dailyCalorieDeficitNeeded = TOTAL_CALORIES_TO_BURN / TOTAL_DAYS; 
         const recommendedIntake = tdee - dailyCalorieDeficitNeeded; 
 
-        // 4. 运动推荐计算
-        let exerciseRecommendationsHtml = '<div style="text-align: left; font-weight: normal;">';
+        // --- 4. 运动组合推荐计算 ---
+        let combinationPlans = [];
         
-        exerciseDataForRecommendation.forEach(ex => {
-            const hoursNeeded = dailyCalorieDeficitNeeded / (ex.met * weight);
-            const minutesNeeded = hoursNeeded * 60; 
+        // Plan 1: 高效平衡 (Balanced Efficiency: 50% 慢跑 + 50% 力量训练)
+        {
+            const jog = getExerciseById('jogging');
+            const strength = getExerciseById('strength');
+            
+            // 计算两种运动需要消耗的卡路里
+            const deficitForJog = dailyCalorieDeficitNeeded * 0.5;
+            const deficitForStrength = dailyCalorieDeficitNeeded * 0.5;
+            
+            // 计算所需时间 (分钟)
+            const timeJogMin = (deficitForJog / (jog.met * weight)) * 60;
+            const timeStrengthMin = (deficitForStrength / (strength.met * weight)) * 60;
+            
+            combinationPlans.push({
+                name: "方案一：高效平衡（有氧+力量）",
+                totalTime: timeJogMin + timeStrengthMin,
+                exercises: [
+                    { name: jog.name, minutes: timeJogMin.toFixed(0), description: jog.description },
+                    { name: strength.name, minutes: timeStrengthMin.toFixed(0), description: strength.description }
+                ]
+            });
+        }
 
+        // Plan 2: 低冲击有氧 (Low Impact Cardio: 70% 骑自行车 + 30% 快走)
+        {
+            const cycle = getExerciseById('cycling');
+            const walk = getExerciseById('fast_walk');
+            
+            const deficitForCycle = dailyCalorieDeficitNeeded * 0.7;
+            const deficitForWalk = dailyCalorieDeficitNeeded * 0.3;
+            
+            const timeCycleMin = (deficitForCycle / (cycle.met * weight)) * 60;
+            const timeWalkMin = (deficitForWalk / (walk.met * weight)) * 60;
+            
+            combinationPlans.push({
+                name: "方案二：低冲击有氧（自行车+快走）",
+                totalTime: timeCycleMin + timeWalkMin,
+                exercises: [
+                    { name: cycle.name, minutes: timeCycleMin.toFixed(0), description: cycle.description },
+                    { name: walk.name, minutes: timeWalkMin.toFixed(0), description: walk.description }
+                ]
+            });
+        }
+        
+        // 5. 格式化并显示结果
+        let exerciseRecommendationsHtml = '';
+        
+        combinationPlans.forEach((plan) => {
             exerciseRecommendationsHtml += `
-                <p style="margin: 8px 0; border-left: 3px solid #f39c12; padding-left: 10px;">
-                    <span style="font-weight: bold; color: #f39c12;">${ex.name}</span>: 
-                    <span style="font-size: 16px;">${minutesNeeded.toFixed(0)} 分钟/天</span> 
-                    <span style="font-size: 12px; color: #7f8c8d;">(${ex.description})</span>
-                </p>
+                <div style="margin-top: 15px; border: 1px solid #e74c3c; border-radius: 6px; padding: 10px; background-color: #fcfcfc;">
+                    <h4 style="color: #e74c3c; margin-top: 0; font-size: 16px;">${plan.name} (总时长: ${plan.totalTime.toFixed(0)} 分钟)</h4>
+                    ${plan.exercises.map(ex => `
+                        <p style="margin: 5px 0; border-left: 3px solid #f39c12; padding-left: 10px; font-size: 14px;">
+                            <span style="font-weight: bold; color: #f39c12;">${ex.name}</span>: 
+                            <span style="font-size: 16px;">${ex.minutes} 分钟</span> 
+                            <span style="font-size: 12px; color: #7f8c8d;">(${ex.description})</span>
+                        </p>
+                    `).join('')}
+                </div>
             `;
         });
-        exerciseRecommendationsHtml += '</div>';
 
-        // 5. 格式化并显示结果
+        // 6. 最终输出
         outputDiv.innerHTML = `
             <span style="font-size: 16px; color: #4b6a88;">
                 您的每日总消耗 (TDEE) 约为：${tdee.toFixed(0)} 千卡
@@ -377,7 +432,7 @@
             </span>
             <hr style="border: 0; border-top: 1px dashed #ddd; margin: 15px 0;">
             
-            <h3 style="color: #2c3e50; font-size: 18px; margin-top: 0; margin-bottom: 10px;">🏃‍♀️ 为达成目标，您的运动量推荐：</h3>
+            <h3 style="color: #2c3e50; font-size: 18px; margin-top: 0; margin-bottom: 10px;">🏃‍♀️ 为达成目标，您的运动组合计划：</h3>
             ${exerciseRecommendationsHtml}
         `;
         outputDiv.style.display = 'block';
