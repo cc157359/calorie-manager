@@ -271,7 +271,7 @@
     /* JavaScript 脚本 */
 
     // 定义常量
-    const FAT_CALORIES_PER_KG = 7700; // 1公斤脂肪约等于 7700 千卡
+    const FAT_CALORIES_PER_KG = 7700; 
     const MIN_HEALTHY_BMI = 18.5;
     const MAX_HEALTHY_BMI = 24.9;
     const MIN_HEALTHY_LOSS_KG_PER_WEEK = 0.5;
@@ -331,6 +331,34 @@
             colors: ['#a864fd', '#29cdff', '#78ff44', '#ff718d', '#fdff6a'] 
         });
     }
+
+    // --- 新增：保存用户输入到本地存储 ---
+    function saveInputs() {
+        localStorage.setItem('userWeight', document.getElementById('weight').value);
+        localStorage.setItem('userHeight', document.getElementById('height').value);
+        localStorage.setItem('userAge', document.getElementById('age').value);
+        localStorage.setItem('userGender', document.getElementById('gender').value);
+        localStorage.setItem('userActivity', document.getElementById('activity').value);
+    }
+
+    // --- 新增：从本地存储加载用户输入 ---
+    function loadInputs() {
+        if (localStorage.getItem('userWeight')) {
+            document.getElementById('weight').value = localStorage.getItem('userWeight');
+        }
+        if (localStorage.getItem('userHeight')) {
+            document.getElementById('height').value = localStorage.getItem('userHeight');
+        }
+        if (localStorage.getItem('userAge')) {
+            document.getElementById('age').value = localStorage.getItem('userAge');
+        }
+        if (localStorage.getItem('userGender')) {
+            document.getElementById('gender').value = localStorage.getItem('userGender');
+        }
+        if (localStorage.getItem('userActivity')) {
+            document.getElementById('activity').value = localStorage.getItem('userActivity');
+        }
+    }
     
     // --- 界面切换逻辑 (保持不变) ---
     function showView(viewId, buttonElement) {
@@ -345,9 +373,12 @@
         }
     }
 
-    // --- 核心计算逻辑：计算本次运动消耗 (保持不变) ---
+    // --- 核心计算逻辑：计算本次运动消耗 ---
     function calculateCalories() {
-        // ... (保持不变) ...
+        // --- 调用保存函数 ---
+        saveInputs(); 
+        
+        // 1. 获取所有输入值
         const weight = parseFloat(document.getElementById('weight').value);
         const height = parseFloat(document.getElementById('height').value);
         const age = parseFloat(document.getElementById('age').value);
@@ -404,6 +435,9 @@
     
     // --- 运动推荐主逻辑 ---
     function calculateRecommendations() {
+        // --- 调用保存函数 ---
+        saveInputs();
+
         // 1. 获取所有输入值
         const weight = parseFloat(document.getElementById('weight').value);
         const height = parseFloat(document.getElementById('height').value);
@@ -427,7 +461,6 @@
         if (bmi >= MIN_HEALTHY_BMI && bmi <= MAX_HEALTHY_BMI && hasSeenHealthyAlert !== 'true') {
             const healthyModal = document.getElementById('healthy-alert-modal');
             healthyModal.style.display = 'block';
-            // 弹出此弹窗后，阻止后续所有计算和弹窗
             return; 
         }
 
@@ -484,19 +517,16 @@
         const healthyModal = document.getElementById('healthy-alert-modal');
         const messageContainer = healthyModal.querySelector('.modal-content p');
         
-        // 记录用户已看到此提示
         localStorage.setItem('hasSeenHealthyAlert', 'true');
 
         if (action === 'known') {
-            healthyModal.style.display = 'none'; // 取消弹窗
+            healthyModal.style.display = 'none'; 
         } else if (action === 'continue') {
-            // 坚持减肥
             messageContainer.innerHTML = '遇见更好的自己！💪';
             
-            // 3秒后消失，并继续执行原始的计划生成逻辑（即进入优先级 2 检查）
             setTimeout(() => {
                 healthyModal.style.display = 'none';
-                calculateRecommendations(); // 再次调用，这次会跳过优先级 1 检查
+                calculateRecommendations(); 
             }, 3000);
         }
     }
@@ -505,14 +535,13 @@
     // --- 弹窗处理函数：减肥速率提示 (优先级 2) ---
     function handleRateSuggestion(listenToSuggestion) {
         const rateModal = document.getElementById('health-alert-modal');
-        rateModal.style.display = 'none'; // 关闭弹窗
+        rateModal.style.display = 'none'; 
 
         const targetWeeks = parseFloat(document.getElementById('targetWeeks').value); 
         let finalWeightLoss;
         let finalDailyDeficit;
 
         if (listenToSuggestion) {
-            // 听从建议：更新输入框，并使用建议值重新计算
             document.getElementById('targetWeightLoss').value = suggestedWeightLossKg.toFixed(1);
             
             finalWeightLoss = suggestedWeightLossKg;
@@ -521,12 +550,10 @@
             finalDailyDeficit = totalCaloriesToBurn / totalDays;
             
         } else {
-            // 不听不听：使用用户最初输入的值继续计算
             finalWeightLoss = parseFloat(document.getElementById('targetWeightLoss').value);
             finalDailyDeficit = initialDailyDeficitNeeded; 
         }
 
-        // 调用生成计划函数
         generatePlan(finalWeightLoss, finalDailyDeficit);
     }
 
@@ -628,8 +655,11 @@
         triggerConfetti();
     }
     
-    // 页面加载完成后默认显示计算器视图
+    // 页面加载完成后：
     window.onload = function() {
+        // 1. 尝试加载保存的数据
+        loadInputs();
+        // 2. 默认显示计算器视图
         showView('calculator-view', document.querySelector('.tab-button'));
     };
 </script>
